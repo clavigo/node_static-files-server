@@ -39,7 +39,7 @@ function createServer() {
       return;
     }
 
-    const requestedPath = url.pathname.replace('/file/', '');
+    const requestedPath = url.pathname.replace('/file/', '') || 'index.html';
 
     const realPath = path.join('public', requestedPath);
 
