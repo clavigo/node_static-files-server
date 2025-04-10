@@ -1,50 +1,49 @@
 'use strict';
 
 const http = require('http');
-const path = require('path');
-const fs = require('fs');
+const fsp = require('fs/promises');
+const url = require('url');
+// const path = require('path');
 
 function createServer() {
   /* Write your code here */
   return http.createServer(async (req, res) => {
-    // eslint-disable-next-line no-console
-    console.log('REQ URL:', req.url);
+    const normalizedURL = new url.URL(req.url, `http://${req.headers.host}`);
+    const normalizedPath =
+      normalizedURL.pathname.replace(/^\/file\//, '') || 'index.html';
 
-    if (req.url.includes('..')) {
+    // Check for invalid paths first
+    if (!normalizedURL.pathname.startsWith('/file')) {
       res.statusCode = 400;
       res.setHeader('Content-Type', 'text/plain');
-      res.end('Invalid file path');
 
-      return;
+      return res.end('Invalid file path');
     }
 
-    const url = new URL(req.url || '', `http://${req.headers.host}`);
+    // Check for path traversal attempts
+    if (normalizedURL.pathname.includes('..')) {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'text/plain');
 
-    // eslint-disable-next-line no-console
-    console.log('URL:', url.pathname);
+      return res.end('Invalid file path');
+    }
 
-    if (url.pathname.includes('//')) {
+    if (normalizedURL.pathname.includes('//')) {
       res.statusCode = 404;
       res.setHeader('Content-Type', 'text/plain');
-      res.end();
 
-      return;
+      return res.end();
     }
 
-    if (!url.pathname.startsWith('/file/')) {
+    if (!normalizedURL.pathname.startsWith('/file/')) {
       res.statusCode = 200;
       res.setHeader('Content-Type', 'text/plain');
-      res.end('All routes must starts with /file/');
 
-      return;
+      return res.end('All routes must starts with /file/');
     }
 
-    const requestedPath = url.pathname.replace('/file/', '') || 'index.html';
-
-    const realPath = path.join('public', requestedPath);
-
     try {
-      const file = fs.readFileSync(realPath, 'utf-8');
+      const file = await fsp.readFile(`./public/${normalizedPath}`, 'utf-8');
 
       res.statusCode = 200;
       res.setHeader('Content-Type', 'text/plain');
@@ -52,7 +51,8 @@ function createServer() {
     } catch (error) {
       res.statusCode = 404;
       res.setHeader('Content-Type', 'text/plain');
-      res.end('Not Found');
+
+      return res.end('Not Found');
     }
   });
 }
